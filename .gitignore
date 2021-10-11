@@ -1,0 +1,10 @@
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# 特定のフォルダの中身全てを無視する(dir/
+# ==================================
+outputs/
+multirun/
+__pycache__/
+# MLflow
+#mlruns/

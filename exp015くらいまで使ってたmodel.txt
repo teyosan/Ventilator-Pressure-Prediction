@@ -1,0 +1,57 @@
+# ====================================================
+# model
+# ====================================================
+class CustomModel(nn.Module):
+    def __init__(self, cfg):
+        super().__init__()
+        self.cfg = cfg
+        self.dense_dim = cfg.dense_dim
+        self.hidden_size = cfg.hidden_size
+        self.num_layers = cfg.num_layers
+        self.logit_dim = cfg.logit_dim
+        # nn.Embedding(vocab_size, emb_dim)
+        # 1層パーセプトロンのようなもの
+        #self.r_emb = nn.Embedding(3, 2, padding_idx=0)
+        #self.c_emb = nn.Embedding(3, 2, padding_idx=0)
+        self.mlp = nn.Sequential(
+            nn.Linear(len(cfg.feature_cols), self.dense_dim // 2),
+            nn.ReLU(),
+            nn.Linear(self.dense_dim // 2, self.dense_dim),
+            #nn.Dropout(0.2),
+            nn.ReLU(),
+        )
+        self.lstm = nn.LSTM(self.dense_dim, self.hidden_size,
+                            num_layers = self.num_layers,
+                            dropout=0.2, batch_first=True, bidirectional=True)
+        self.head = nn.Sequential(
+            nn.Linear(self.hidden_size * 2, self.logit_dim),
+            nn.ReLU(),
+            nn.Linear(self.logit_dim, cfg.target_size),
+        )
+        # LSTMやGRUは直交行列に初期化する
+        for n, m in self.named_modules():
+            if isinstance(m, nn.LSTM):
+                print(f'init {m}')
+                for param in m.parameters():
+                    if len(param.shape) >= 2:
+                        nn.init.orthogonal_(param.data)
+                    else:
+                        nn.init.normal_(param.data)
+            elif isinstance(m, nn.GRU):
+                print(f"init {m}")
+                for param in m.parameters():
+                    if len(param.shape) >= 2:
+                        nn.init.orthogonal_(param.data)
+                    else:
+                        nn.init.normal_(param.data)
+
+    def forward(self, x):
+        bs = x.size(0)
+        features = self.mlp(x)
+        features, _ = self.lstm(features)
+        output = self.head(features).view(bs, -1)
+        return output
+    
+def get_model(cfg):
+    model = CustomModel(cfg)
+    return model
